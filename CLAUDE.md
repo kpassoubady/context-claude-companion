@@ -19,4 +19,4 @@ Student companion repository for the **Context Engineering for Claude Code** cou
 
 | Repository | Purpose |
 | :--- | :--- |
-| [context-engineering-for-claude-code-setup](https://github.com/kpassoubady/context-engineering-for-claude-code-setup) | Pre-class setup and environment verification |
+| [context-claude-setup](https://github.com/kpassoubady/context-claude-setup) | Pre-class setup and environment verification |

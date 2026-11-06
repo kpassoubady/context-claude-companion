@@ -15,7 +15,7 @@ This course introduces context engineering principles specific to Claude Code. P
 ## Prerequisites & Setup
 
 Before the session, complete the pre-class installation and environment verification in the setup repository:
-- Follow the instructions in [context-engineering-for-claude-code-setup](https://github.com/kpassoubady/context-engineering-for-claude-code-setup) to verify your Claude Code installation and tool access.
+- Follow the instructions in [context-claude-setup](https://github.com/kpassoubady/context-claude-setup) to verify your Claude Code installation and tool access.
 
 ## Exercise Structure
 
@@ -25,4 +25,4 @@ Each hands-on exercise is organized into:
 
 ## Related Repositories
 
-- [context-engineering-for-claude-code-setup](https://github.com/kpassoubady/context-engineering-for-claude-code-setup) — Pre-class setup guides and environment verification.
+- [context-claude-setup](https://github.com/kpassoubady/context-claude-setup) — Pre-class setup guides and environment verification.
