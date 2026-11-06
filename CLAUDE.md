@@ -1,11 +1,22 @@
-# Project Overview
-This project was scaffolded using the `repo-init` skill. 
+# Context Engineering for Claude Code — Companion
 
-## Directory Layout
-- `llm-context/`: Stores context for LLM agents.
+Student companion repository for the **Context Engineering for Claude Code** course. Contains hands-on labs, working examples, and exercises for learning context engineering in Claude Code.
 
-## Verification Steps
-TBD
+## Tech Stack
 
-## Content Guidelines
-TBD
+- **Primary Tool:** Anthropic Claude Code CLI
+- **Language / Environment:** Node.js, Python, Markdown, Shell
+- **Content Type:** Course breakout labs and student exercises
+
+## Directory Structure
+
+| Directory | Purpose |
+| :--- | :--- |
+| `labs/` | Breakout exercises (`start/` and `solution/` pairs) |
+| `llm-context/` | Stores context and reference materials for LLM agents |
+
+## Related Repositories
+
+| Repository | Purpose |
+| :--- | :--- |
+| [context-engineering-for-claude-code-setup](https://github.com/kpassoubady/context-engineering-for-claude-code-setup) | Pre-class setup and environment verification |
