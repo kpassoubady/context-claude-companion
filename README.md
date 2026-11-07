@@ -1,27 +1,43 @@
 # Context Engineering for Claude Code — Companion
 
-Student-facing exercise companion repository for the **Context Engineering for Claude Code** course.
+Student companion repository for the **Context Engineering for Claude Code** course. Contains concept reference guides, hands-on breakout exercises (`start/` and `solution/` pairs), and executable verification scripts.
 
-This repository contains hands-on breakout exercises, starter projects (`start/`), and reference solutions (`solution/`) used during the class.
+## Prerequisites & Environment Setup
 
-## Course Overview
+Before class, complete the environment check in [context-claude-setup](https://github.com/kpassoubady/context-claude-setup) and confirm:
 
-This course introduces context engineering principles specific to Claude Code. Participants learn to recognize how context quality affects agent behavior and master practical strategies for managing context across complex agentic workflows:
-- Configuring upfront context with `CLAUDE.md` and repository rules
-- Leveraging just-in-time file retrieval (glob/grep) over context stuffing
-- Managing multi-turn context compaction and structured persistence
-- Isolating context via sub-agent architectures
+1. **Python 3.10+**:
+   ```bash
+   python3 --version
+   ```
+   All lab verification scripts (`verify_lab.py`) and unit suites run with the Python 3 standard library (`unittest`, `ast`, `fnmatch`, `pathlib`) with zero external package installation required (`pytest` is also supported if installed).
+2. **Claude Code CLI** and **Git**:
+   ```bash
+   git --version
+   ```
 
-## Prerequisites & Setup
+## Repository Structure
 
-Before the session, complete the pre-class installation and environment verification in the setup repository:
-- Follow the instructions in [context-claude-setup](https://github.com/kpassoubady/context-claude-setup) to verify your Claude Code installation and tool access.
+| Path | Contents |
+| :--- | :--- |
+| `day1/concepts/` | Student concept reference guides for Sessions 1–4 |
+| `labs/day1/lab2_1/` | **Breakout Lab 2.1:** Structuring Project Context with `CLAUDE.md` (`README.md`, `start/`, `solution/`) |
+| `labs/day1/lab3_1/` | **Breakout Lab 3.1:** Context Compaction and State Handoffs (`README.md`, `start/`, `solution/`) |
+| `day1/lab2_1` & `day1/lab3_1` | Convenience symlinks to `labs/day1/lab2_1` and `labs/day1/lab3_1` |
 
-## Exercise Structure
+## Running Breakout Lab Checks
 
-Each hands-on exercise is organized into:
-- `start/` — Starter code and instructions with `TODO` markers.
-- `solution/` — Completed reference implementation and design rationale.
+Each breakout exercise includes a deterministic acceptance check (`verify_lab.py`):
+
+```bash
+# Breakout Lab 2.1
+cd labs/day1/lab2_1/start
+python3 verify_lab.py
+
+# Breakout Lab 3.1
+cd labs/day1/lab3_1/start
+python3 verify_lab.py
+```
 
 ## Related Repositories
 
