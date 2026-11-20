@@ -2,114 +2,110 @@
 Demo - Context Hazard Linter
 Day 1 - Topic 4
 
-Goal: Audit a repository's context configuration (`CLAUDE.md`, `.claude/rules/*.md`, and captured tool logs) to detect stale file paths, conflicting directives, unscoped subsystem rules, redundancy, and verbose tool dumps.
+Goal: Audit a repository's context files for stale paths, conflicting directives, unscoped rules, duplicate lines, and verbose tool output.
 
-This script performs static checks against a sample repository fixture and reports actionable remediation steps while noting what still requires human review and runtime test verification.
+This script reads the real files in `fixtures/hazard_repo/` (`CLAUDE.md`, `.claude/rules/*.md`, and a captured tool log), checks every backticked path against the file system with `Path.exists()`, derives conflicts by pairing "forbidden" tools in one file with recommendations in another, and counts lines in the log file. Change a fixture file and rerun to see the report change. Static checks do not replace human review or tests.
 
-No API key needed. Pure Python.
+No API key needed. Python 3 standard library only.
 
-Run: python3 day1/demos/demo-context-hazard-linter.py
+Run (from the companion repo root): python3 day1/demos/demo-context-hazard-linter.py
 """
 
 import re
+from pathlib import Path
 
-EXISTING_REPO_PATHS = {
-    "services/api/client.py",
-    "services/api/routes.py",
-    "services/worker/jobs.py",
-    "tests/api/test_client.py",
-}
-
-SAMPLE_CLAUDE_MD = """# Platform Service Repository
-- Architecture docs live in `docs/legacy_v1/architecture.md` and `scripts/old_deploy.sh`.
-- Standard testing: Run all tests using `python -m unittest discover`.
-- Outbound HTTP: Use synchronous `requests.Session()` for service-to-service calls.
-- Always write clean code, follow best practices, and be careful with errors.
-- Always write clean code, follow best practices, and be careful with errors.
-"""
-
-SAMPLE_RULES = {
-    ".claude/rules/api-async.md": """# FastAPI Service Rules (Missing paths: frontmatter!)
-- Test runner: Always use `pytest tests/api -q` (never use unittest).
-- Outbound HTTP: Always use `httpx.AsyncClient` for service-to-service calls; `requests` is forbidden.
-""",
-}
-
-CAPTURED_TOOL_OUTPUT_LINES = 2400
+REPO = Path(__file__).parent / "fixtures" / "hazard_repo"
+LOG_LINE_LIMIT = 500
 
 
-def detect_stale_paths(markdown_text: str, valid_paths: set[str]) -> list[str]:
-    """Find backticked file paths in instructions that do not exist in the repository."""
-    candidates = re.findall(r"`([a-zA-Z0-9_./-]+\.[a-zA-Z0-9]+)`", markdown_text)
-    return [p for p in candidates if "/" in p and p not in valid_paths]
+def instruction_files() -> dict[str, str]:
+    files = {"CLAUDE.md": (REPO / "CLAUDE.md").read_text()}
+    for p in sorted((REPO / ".claude" / "rules").glob("*.md")):
+        files[str(p.relative_to(REPO))] = p.read_text()
+    return files
 
 
-def detect_conflicts(root_md: str, rules_map: dict[str, str]) -> list[str]:
-    """Detect explicit contradictory tool/library directives across instruction files."""
-    combined_rules = "\n".join(rules_map.values())
+def detect_stale_paths(files: dict[str, str]) -> list[tuple[str, str]]:
+    """Backticked paths in instructions that do not exist in the repo."""
+    stale = []
+    for name, text in files.items():
+        for candidate in re.findall(r"`([\w./-]+\.\w+)`", text):
+            if "/" in candidate and not (REPO / candidate).exists():
+                stale.append((name, candidate))
+    return stale
+
+
+FORBIDDEN = re.compile(r"never use\s+`?(\w+)`?|`(\w+)` is forbidden", re.I)
+TOOL_ALIASES = {"unittest": ["unittest"], "requests": ["requests"]}
+
+
+def detect_conflicts(files: dict[str, str]) -> list[str]:
+    """A tool one file forbids that another file tells Claude to use."""
     conflicts = []
-    if "unittest" in root_md and "never use unittest" in combined_rules:
-        conflicts.append("Test runner conflict: root CLAUDE.md specifies `unittest`, but `.claude/rules/api-async.md` forbids `unittest` and requires `pytest`.")
-    if "requests.Session()" in root_md and "`requests` is forbidden" in combined_rules:
-        conflicts.append("HTTP client conflict: root CLAUDE.md recommends `requests.Session()`, but `.claude/rules/api-async.md` forbids `requests` in favor of `httpx.AsyncClient`.")
+    for src, text in files.items():
+        forbidden = {m for g in FORBIDDEN.findall(text) for m in g if m} & set(TOOL_ALIASES)
+        for tool in forbidden:
+            for other, other_text in files.items():
+                if other == src:
+                    continue
+                for line in other_text.splitlines():
+                    if re.search(rf"\b{tool}\b", line) and re.search(r"\b(use|run)\b", line, re.I):
+                        conflicts.append(f"`{tool}` is forbidden in {src} but {other} says: {line.strip('- ').strip()}")
     return conflicts
 
 
-def detect_unscoped_rules(rules_map: dict[str, str]) -> list[str]:
-    """Flag component-specific `.claude/rules/*.md` files missing `paths:` frontmatter."""
-    unscoped = []
-    for path, content in rules_map.items():
-        if not content.lstrip().startswith("---"):
-            unscoped.append(f"{path} has no `paths:` YAML frontmatter (loads unconditionally on every session start).")
-    return unscoped
+def detect_unscoped_rules(files: dict[str, str]) -> list[str]:
+    return [n for n, t in files.items() if n.startswith(".claude/rules/") and not t.lstrip().startswith("---")]
 
 
-def detect_duplicate_lines(markdown_text: str) -> list[str]:
-    """Find duplicate bullet lines inside an instruction file."""
-    seen = set()
+def detect_duplicates(files: dict[str, str]) -> list[tuple[str, str]]:
     dups = []
-    for line in markdown_text.splitlines():
-        cleaned = line.strip()
-        if cleaned.startswith("- "):
-            if cleaned in seen:
-                dups.append(cleaned)
-            seen.add(cleaned)
+    for name, text in files.items():
+        seen = set()
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith("- "):
+                if line in seen:
+                    dups.append((name, line))
+                seen.add(line)
     return dups
 
 
 def main() -> None:
-    print("=== Context Hazard Audit Report (Static Fixture Inspection) ===\n")
+    files = instruction_files()
+    print(f"=== Context Hazard Audit of fixtures/hazard_repo ({len(files)} instruction files) ===\n")
 
-    stale = detect_stale_paths(SAMPLE_CLAUDE_MD, EXISTING_REPO_PATHS)
-    print(f"1. Stale Path References ({len(stale)} found):")
-    for item in stale:
-        print(f"   - `{item}` does not exist in working tree")
+    stale = detect_stale_paths(files)
+    print(f"1. Stale path references ({len(stale)} found):")
+    for name, path in stale:
+        print(f"   - {name}: `{path}` does not exist on disk")
 
-    conflicts = detect_conflicts(SAMPLE_CLAUDE_MD, SAMPLE_RULES)
-    print(f"\n2. Conflicting Directives ({len(conflicts)} found):")
-    for item in conflicts:
-        print(f"   - {item}")
+    conflicts = detect_conflicts(files)
+    print(f"\n2. Conflicting directives ({len(conflicts)} found):")
+    for c in conflicts:
+        print(f"   - {c}")
 
-    unscoped = detect_unscoped_rules(SAMPLE_RULES)
-    print(f"\n3. Context Dilution / Unscoped Rules ({len(unscoped)} found):")
-    for item in unscoped:
-        print(f"   - {item}")
+    unscoped = detect_unscoped_rules(files)
+    print(f"\n3. Rules without `paths:` frontmatter ({len(unscoped)} found):")
+    for name in unscoped:
+        print(f"   - {name} loads on every session start")
 
-    dups = detect_duplicate_lines(SAMPLE_CLAUDE_MD)
-    print(f"\n4. Redundant / Generic Instructions ({len(dups)} found):")
-    for item in dups:
-        print(f"   - Duplicate generic rule: {item}")
+    dups = detect_duplicates(files)
+    print(f"\n4. Duplicate lines ({len(dups)} found):")
+    for name, line in dups:
+        print(f"   - {name}: {line}")
 
-    print("\n5. Verbose Tool Output Check:")
-    if CAPTURED_TOOL_OUTPUT_LINES > 500:
-        print(f"   - Last tool output dumped {CAPTURED_TOOL_OUTPUT_LINES:,d} lines; bound with `-q --tb=short` or path filters.")
+    log = REPO / "logs" / "last_tool_output.txt"
+    n = len(log.read_text().splitlines())
+    print("\n5. Verbose tool output:")
+    status = "over the limit; bound with `-q --tb=short` or path filters" if n > LOG_LINE_LIMIT else "within the limit"
+    print(f"   - {log.relative_to(REPO)} has {n:,d} lines ({status}, limit {LOG_LINE_LIMIT})")
 
     print(
-        "\nTakeaway: Static checks quickly catch broken paths, unscoped rule files, and explicit "
-        "contradictions, freeing human reviewers and runtime tests to verify semantic adherence."
+        "\nTakeaway: Static checks catch broken paths, unscoped rules, and explicit contradictions "
+        "so human review and tests can focus on whether Claude actually follows the guidance."
     )
 
 
 if __name__ == "__main__":
     main()
-

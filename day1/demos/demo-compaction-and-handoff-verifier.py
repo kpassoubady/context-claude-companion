@@ -2,96 +2,108 @@
 Demo - Compaction and Handoff Verifier
 Day 1 - Topic 3
 
-Goal: Audit an unfocused auto-compaction summary against a focused `/compact` summary and a structured `HANDOFF.md` by verifying claims against actual repository state and test execution.
+Goal: Audit an unfocused auto-compaction summary, a focused `/compact` summary, and a `HANDOFF.md` against what `git status` and `pytest` report for the repository.
 
-This script inspects a simulated mid-debugging repository state for a task-queue lease bug, demonstrating how lossy summaries drop negative constraints (rejected fixes) or retain stale file claims, and how a deterministic verification step catches drift before code changes resume.
+This script copies `fixtures/compaction_repo/` (a refund-ledger bug, separate from Lab 3.1) to a temporary directory, commits a baseline, applies one in-progress edit to `refunds/ledger.py`, then runs `git status --porcelain` and `pytest` to get the real modified files and the real failing test. It parses the method signature with `ast` and reads the rejected approaches from the session transcript. It then checks each summary file under `session_history/` against those facts.
 
-No API key needed. Pure Python.
+No API key needed. Needs python3, pytest, git.
 
-Run: python3 day1/demos/demo-compaction-and-handoff-verifier.py
+Run (from the companion repo root): python3 day1/demos/demo-compaction-and-handoff-verifier.py
 """
 
-ACTUAL_REPO_STATE = {
-    "git_commit": "8f4a12c",
-    "modified_files": ["task_queue/lease.py"],
-    "unmodified_files": ["task_queue/dispatcher.py", "task_queue/config.py"],
-    "failing_test": "tests/test_lease.py::test_concurrent_lease_renewal",
-    "rejected_approaches": [
-        "increase_ttl_to_300s (broke heartbeat timeout test)",
-        "global_threading_lock (failed concurrency throughput SLA)",
-    ],
-    "required_constraint": "Preserve LeaseManager.renew(worker_id, lease_id,observed_seq) signature",
-}
+import ast
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 
-UNFOCUSED_AUTO_SUMMARY = """Session Summary:
-Investigated duplicate job execution in the task queue worker. Looked at dispatcher.py, config.py, and lease.py.
-Tried adjusting lease TTL and locking mechanisms. Next step: finish fixing lease renewal in dispatcher.py and lease.py.
-"""
-
-FOCUSED_COMPACT_SUMMARY = """Focused Summary (/compact preserve root cause in lease.py, rejected TTL and global lock fixes, and failing test):
-- Root cause is non-atomic sequence comparison in task_queue/lease.py.
-- Rejected fixes: (1) increase_ttl_to_300s, (2) global_threading_lock.
-- Failing test: tests/test_lease.py::test_concurrent_lease_renewal.
-- Note: task_queue/dispatcher.py was also edited earlier.
-"""
-
-STRUCTURED_HANDOFF_MD = """# Task Handoff: Atomic Lease Renewal
-- Revision: 8f4a12c
-- Modified Files: task_queue/lease.py
-- Goal: Prevent duplicate job execution when two workers renew an expiring lease.
-- Current State: Root cause isolated to sequence check in task_queue/lease.py.
-- Constraints: Preserve LeaseManager.renew(worker_id, lease_id, observed_seq) signature.
-- Failed Approaches:
-  1. increase_ttl_to_300s (broke heartbeat timeout test)
-  2. global_threading_lock (failed concurrency throughput SLA)
-- Next Verification: pytest tests/test_lease.py::test_concurrent_lease_renewal -q
-"""
+FIXTURE = Path(__file__).parent / "fixtures" / "compaction_repo"
+GIT = ["git", "-c", "user.name=demo", "-c", "user.email=demo@example.com"]
 
 
-def audit_state_record(label: str, text: str, repo_state: dict) -> dict:
-    """Check whether a summary or handoff preserves critical facts and avoids stale claims."""
-    preserves_failing_test = repo_state["failing_test"] in text
-    preserved_rejections = sum(1 for r in repo_state["rejected_approaches"] if r.split()[0] in text)
-    preserves_signature = "LeaseManager.renew" in text
-    claims_dispatcher_modified = "dispatcher.py was also edited" in text or "fixing lease renewal in dispatcher.py" in text
-    stale_claim_detected = claims_dispatcher_modified and "task_queue/dispatcher.py" in repo_state["unmodified_files"]
+def sh(root: Path, cmd: list[str]) -> str:
+    proc = subprocess.run(cmd, cwd=root, capture_output=True, text=True)
+    return proc.stdout + proc.stderr
 
+
+def build_session_state(root: Path) -> None:
+    """Commit the fixture, then leave the working tree as it was mid-session."""
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(GIT + ["commit", "-qm", "baseline"], cwd=root, check=True)
+    ledger = root / "refunds/ledger.py"
+    ledger.write_text(ledger.read_text().replace(
+        "        self._seen: set[str] = set()\n",
+        "        self._seen: set[str] = set()\n        self._seen_at: dict[str, int] = {}  # WIP: first-seen order\n",
+    ))
+
+
+def collect_ground_truth(root: Path) -> dict:
+    status = sh(root, ["git", "status", "--porcelain"]).rstrip().splitlines()
+    modified = [line[3:] for line in status if not line.startswith("??")]
+    pytest_out = sh(root, [sys.executable, "-m", "pytest", "-q", "-rf", "--tb=no", "-p", "no:cacheprovider"])
+    failing = re.findall(r"^FAILED (\S+)", pytest_out, flags=re.M)
+
+    tree = ast.parse((root / "refunds/ledger.py").read_text())
+    func = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "post_refund")
+    signature = f"post_refund({ast.unparse(func.args)}) -> {ast.unparse(func.returns)}"
+
+    transcript = (root / "session_history/transcript_excerpt.md").read_text()
+    rejected = re.findall(r"`(\w+)`[^\n]*REJECTED", transcript)
+
+    return {"status": status, "modified": modified, "pytest_out": pytest_out,
+            "failing": failing, "signature": signature, "rejected": rejected}
+
+
+def audit(text: str, truth: dict) -> dict:
+    """Check one summary against the facts that git, pytest, ast, and the transcript produced."""
+    named_as_work = set()
+    for line in text.splitlines():
+        if re.search(r"edit|modif|fix|chang|updat", line, flags=re.I):
+            named_as_work.update(re.findall(r"[\w/]+\.py", line))
+    named_as_work = {p for p in named_as_work if not p.startswith("tests/")}
     return {
-        "label": label,
-        "preserves_failing_test": preserves_failing_test,
-        "preserved_rejections": f"{preserved_rejections}/{len(repo_state['rejected_approaches'])}",
-        "preserves_signature": preserves_signature,
-        "stale_file_claim": stale_claim_detected,
+        "failing_test": all(f in text for f in truth["failing"]),
+        "rejected": sum(1 for r in truth["rejected"] if r in text),
+        "signature": truth["signature"] in text,
+        "unmodified_named": sorted(named_as_work - set(truth["modified"])),
     }
 
 
 def main() -> None:
-    records = [
-        audit_state_record("1. Unfocused Auto-Compaction", UNFOCUSED_AUTO_SUMMARY, ACTUAL_REPO_STATE),
-        audit_state_record("2. Focused /compact Summary", FOCUSED_COMPACT_SUMMARY, ACTUAL_REPO_STATE),
-        audit_state_record("3. Verified HANDOFF.md", STRUCTURED_HANDOFF_MD, ACTUAL_REPO_STATE),
-    ]
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp).resolve() / "compaction_repo"
+        shutil.copytree(FIXTURE, root)
+        build_session_state(root)
+        truth = collect_ground_truth(root)
 
-    print("=== Auditing Compaction Summaries & Handoff Notes Against Disk/Test State ===")
-    print(
-        f"{'Artifact':<30} | {'Failing Test?':<13} | {'Rejected Fixes':<14} | "
-        f"{'Signature?':<10} | {'Stale Claim?'}"
-    )
-    print("-" * 88)
-    for rec in records:
-        print(
-            f"{rec['label']:<30} | {str(rec['preserves_failing_test']):<13} | "
-            f"{rec['preserved_rejections']:<14} | {str(rec['preserves_signature']):<10} | "
-            f"{'YES (drift!)' if rec['stale_file_claim'] else 'No (clean)'}"
-        )
+        print("=== Ground truth from the repository ===")
+        print(f"  git status --porcelain : {', '.join(l.strip() for l in truth['status']) or '(clean)'}")
+        print(f"  pytest failing         : {', '.join(truth['failing']) or '(none)'}")
+        print(f"  signature (ast)        : {truth['signature']}")
+        print(f"  rejected (transcript)  : {', '.join(truth['rejected'])}")
+        print()
+
+        artifacts = [
+            ("1. Unfocused auto-compaction", "auto_compact_summary.md"),
+            ("2. Focused /compact summary", "focused_compact_summary.md"),
+            ("3. HANDOFF.md", "HANDOFF.md"),
+        ]
+        print(f"{'Artifact':<30} | {'Failing test':<12} | {'Rejected fixes':<14} | {'Signature':<9} | Unmodified files named as work")
+        print("-" * 110)
+        for label, name in artifacts:
+            r = audit((root / "session_history" / name).read_text(), truth)
+            print(f"{label:<30} | {str(r['failing_test']):<12} | {f"{r['rejected']}/{len(truth['rejected'])}":<14} | "
+                  f"{str(r['signature']):<9} | {', '.join(r['unmodified_named']) or 'none'}")
 
     print(
-        "\nTakeaway: Compaction summaries are lossy; pairing focused `/compact` or a structured "
-        "`HANDOFF.md` with immediate verification against `git status` and `pytest` prevents "
-        "repeating rejected fixes or acting on stale file assumptions."
+        "\nTakeaway: The automatic summary kept the story but dropped the failing test, both rejected fixes, "
+        "and the signature, and it pointed the next step at a file git shows untouched. Check any summary or "
+        "HANDOFF.md against `git status` and `pytest` before you resume work."
     )
 
 
 if __name__ == "__main__":
     main()
-

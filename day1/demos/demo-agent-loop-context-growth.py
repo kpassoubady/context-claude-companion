@@ -2,100 +2,134 @@
 Demo - Multi-Turn Agent Loop Context Growth
 Day 1 - Topic 1
 
-Goal: Simulate six turns of a Claude Code agent loop (`Gather -> Act -> Verify`) and measure how unbounded directory scans and build artifacts accumulate across turns compared to path-scoped queries.
+Goal: Measure how the output of six agent tool calls accumulates in the context window when the calls are unbounded versus scoped to source files.
 
-This script executes real file-matching and line-filtering operations against an in-memory repository tree representing a SaaS telemetry ingestion pipeline (`src/`, `dist/`, `node_modules/`, `tests/`), comparing cumulative working-window growth across 6 turns.
+This script builds a small Python telemetry-ingest project in a temporary directory (`src/`, `tests/`, a compiled `dist/` bundle, and a vendored `node_modules/` package), initialises git, and runs the commands an agent would run: `ls`, `grep`, `cat`, `pytest`, and `git diff`. It counts the real lines and characters each command returns. Tokens are estimated as characters divided by 4. Verify the live window with `/context`.
 
-No API key needed. Pure Python.
+No API key needed. Needs python3, pytest, git, grep. Standard library otherwise.
 
-Run: python3 day1/demos/demo-agent-loop-context-growth.py
+Run (from the companion repo root): python3 day1/demos/demo-agent-loop-context-growth.py
 """
 
-from fnmatch import fnmatch
-
-VIRTUAL_REPO_FILES = {
-    "CLAUDE.md": "\n".join([
-        "# Telemetry Worker",
-        "- Edit TypeScript sources in src/ only; never edit compiled files in dist/.",
-        "- Run focused tests with: pytest tests/test_ingest.py -q",
-    ]),
-    "src/ingest/worker.py": "\n".join([f"def process_event_{i}(payload): return payload.get('id')" for i in range(25)]),
-    "src/ingest/validator.py": "\n".join([f"REQUIRED_FIELD_{i} = 'tenant_id'" for i in range(20)]),
-    "dist/ingest/worker.bundled.js": "\n".join([f"// compiled artifact line {i}: var process_event = function() {{}};" for i in range(400)]),
-    "node_modules/vendor_pkg/index.js": "\n".join([f"// third-party vendor code line {i}" for i in range(600)]),
-    "tests/test_ingest.py": "\n".join([f"def test_case_{i}(): assert True" for i in range(40)]),
-}
-
-EXCLUDED_GLOBS = ("dist/**", "node_modules/**")
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 
 
-def is_excluded(path: str) -> bool:
-    """Return True if path matches a build artifact or dependency directory."""
-    return any(fnmatch(path, pat) for pat in EXCLUDED_GLOBS)
+def build_project(root: Path) -> None:
+    files = {
+        "CLAUDE.md": (
+            "# Telemetry Worker\n"
+            "- Edit Python sources in src/ only; never edit compiled files in dist/.\n"
+            "- Run focused tests with: pytest tests/test_ingest.py -q\n"
+        ),
+        "pytest.ini": "[pytest]\npythonpath = .\n",
+        "src/ingest/worker.py": "".join(
+            f"def process_event_{i}(payload):\n    return payload.get('id')\n\n\n" for i in range(25)
+        ),
+        "src/ingest/validator.py": "".join(f"REQUIRED_FIELD_{i} = 'tenant_id'\n" for i in range(20)),
+        "dist/ingest/worker.bundled.js": "".join(
+            f"// compiled artifact line {i}: var process_event = function() {{}};\n" for i in range(400)
+        ),
+        "node_modules/vendor_pkg/index.js": "".join(
+            f"// third-party vendor code line {i}{': process_event_wrapper' if i % 3 == 0 else ''}\n"
+            for i in range(600)
+        ),
+        "tests/test_ingest.py": "from src.ingest import worker\n\n\n"
+        + "".join(
+            f"def test_case_{i}():\n    assert worker.process_event_{i % 25}({{'id': {i}}}) == {i}\n\n\n"
+            for i in range(40)
+        ),
+    }
+    for rel, text in files.items():
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+    git = ["git", "-c", "user.name=demo", "-c", "user.email=demo@example.com"]
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(git + ["commit", "-qm", "baseline"], cwd=root, check=True)
+    # The agent's actual edit, so `git diff` has real content.
+    worker = root / "src/ingest/worker.py"
+    worker.write_text(worker.read_text().replace("return payload.get('id')", "return payload.get('id') or ''", 1))
 
 
-def run_unbounded_turn_sequence() -> list[tuple[int, str, int, list[str]]]:
-    """Execute 6 agent turns without path filters or output bounds."""
-    history_lines = 0
-    records = []
-    steps = [
-        (1, "Load CLAUDE.md", ["CLAUDE.md"], 1.0),
-        (2, "Broad file listing (all dirs)", list(VIRTUAL_REPO_FILES.keys()), 0.5),
-        (3, "Unscoped grep across repo (includes dist/ & node_modules/)", list(VIRTUAL_REPO_FILES.keys()), 1.0),
-        (4, "Read compiled artifact dist/ingest/worker.bundled.js", ["dist/ingest/worker.bundled.js"], 1.0),
-        (5, "Verbose test suite dump (all tests -vv)", ["tests/test_ingest.py", "node_modules/vendor_pkg/index.js"], 1.0),
-        (6, "Re-read src/ and dist/ after confusion", ["src/ingest/worker.py", "dist/ingest/worker.bundled.js"], 1.0),
-    ]
-    for turn, action, paths, factor in steps:
-        added_lines = sum(int(len(VIRTUAL_REPO_FILES[p].splitlines()) * factor) for p in paths)
-        history_lines += added_lines
-        polluted = [p for p in paths if is_excluded(p)]
-        records.append((turn, action, history_lines, polluted))
-    return records
+def run(root: Path, cmd: str) -> str:
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONPATH="")
+    proc = subprocess.run(cmd, shell=True, cwd=root, capture_output=True, text=True, env=env)
+    # Normalise pytest's wall-clock time so repeated runs print identical numbers.
+    return re.sub(r" in \d+\.\d+s", " in Ns", proc.stdout + proc.stderr)
 
 
-def run_bounded_turn_sequence() -> list[tuple[int, str, int, list[str]]]:
-    """Execute 6 agent turns using targeted paths and concise tool outputs."""
-    history_lines = 0
-    records = []
-    source_only = [p for p in VIRTUAL_REPO_FILES if not is_excluded(p)]
-    steps = [
-        (1, "Load CLAUDE.md", ["CLAUDE.md"], 1.0),
-        (2, "Targeted Glob in src/ and tests/ only", source_only, 0.1),
-        (3, "Scoped Grep in src/ingest/ (--max-count=5)", ["src/ingest/worker.py", "src/ingest/validator.py"], 0.25),
-        (4, "Targeted Read of src/ingest/worker.py", ["src/ingest/worker.py"], 1.0),
-        (5, "Focused test run (pytest tests/test_ingest.py -q)", ["tests/test_ingest.py"], 0.15),
-        (6, "Verify clean diff on src/ingest/worker.py", ["src/ingest/worker.py"], 0.2),
-    ]
-    for turn, action, paths, factor in steps:
-        added_lines = max(2, sum(int(len(VIRTUAL_REPO_FILES[p].splitlines()) * factor) for p in paths))
-        history_lines += added_lines
-        polluted = [p for p in paths if is_excluded(p)]
-        records.append((turn, action, history_lines, polluted))
-    return records
+PYTEST = f"{sys.executable} -m pytest -p no:cacheprovider"
+
+UNBOUNDED = [
+    ("cat CLAUDE.md", "cat CLAUDE.md"),
+    ("ls -R (everything)", "ls -R"),
+    ("grep -rn process_event . (whole repo)", "grep -rn process_event ."),
+    ("cat dist/ingest/worker.bundled.js", "cat dist/ingest/worker.bundled.js"),
+    ("pytest -vv (verbose dump)", f"{PYTEST} -vv"),
+    ("re-read worker.py and dist bundle", "cat src/ingest/worker.py dist/ingest/worker.bundled.js"),
+]
+
+BOUNDED = [
+    ("cat CLAUDE.md", "cat CLAUDE.md"),
+    ("find src tests -type f", "find src tests -type f"),
+    ("grep -rn -m5 process_event src/ingest", "grep -rn -m5 process_event src/ingest"),
+    ("cat src/ingest/worker.py", "cat src/ingest/worker.py"),
+    ("pytest tests/test_ingest.py -q", f"{PYTEST} tests/test_ingest.py -q"),
+    ("git diff --stat src/", "git diff --stat src/"),
+]
+
+
+def polluted_lines(output: str) -> int:
+    """Count output lines that came from build output (dist/) or vendored code (node_modules/)."""
+    markers = ("./dist/", "./node_modules/", "compiled artifact line", "third-party vendor code")
+    return sum(1 for line in output.splitlines() if any(m in line for m in markers))
+
+
+def measure(root: Path, steps: list[tuple[str, str]]) -> list[dict]:
+    total_chars = total_lines = 0
+    rows = []
+    for label, cmd in steps:
+        out = run(root, cmd)
+        lines, chars = len(out.splitlines()), len(out)
+        total_lines += lines
+        total_chars += chars
+        rows.append({"label": label, "lines": lines, "cum_lines": total_lines,
+                     "cum_tokens": total_chars // 4, "polluted": polluted_lines(out)})
+    return rows
 
 
 def main() -> None:
-    unbounded = run_unbounded_turn_sequence()
-    bounded = run_bounded_turn_sequence()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp).resolve() / "telemetry_worker"
+        root.mkdir()
+        build_project(root)
+        unbounded = measure(root, UNBOUNDED)
+        bounded = measure(root, BOUNDED)
 
-    print("=== Multi-Turn Agent Loop Context Accumulation (6 Turns) ===")
-    print(f"{'Turn':<4} | {'Unbounded Lines':>15} | {'Bounded Lines':>13} | {'Bounded Action & Pollution Check'}")
-    print("-" * 88)
-    for (t1, act_u, lines_u, pol_u), (t2, act_b, lines_b, pol_b) in zip(unbounded, bounded):
-        pol_note = f" [Unbounded read {', '.join(pol_u)}]" if pol_u else ""
-        print(f"{t1:<4} | {lines_u:>15,d} | {lines_b:>13,d} | {act_b}{pol_note}")
+    print("=== Multi-Turn Agent Loop: real tool output per turn (cumulative) ===")
+    print(f"{'Turn':<4} | {'Mode':<9} | {'Command':<40} | {'+Lines':>6} | {'Cum lines':>9} | {'Cum est tokens':>14} | Build/vendor lines")
+    print("-" * 112)
+    for i, (u, b) in enumerate(zip(unbounded, bounded), start=1):
+        for mode, r in (("unbounded", u), ("bounded", b)):
+            print(f"{i:<4} | {mode:<9} | {r['label']:<40} | {r['lines']:>6,d} | {r['cum_lines']:>9,d} | "
+                  f"{r['cum_tokens']:>14,d} | {r['polluted']:>3d}")
+        print()
 
-    final_u = unbounded[-1][2]
-    final_b = bounded[-1][2]
-    reduction_pct = (1.0 - (final_b / final_u)) * 100.0
-    print(f"\nCumulative context lines after Turn 6: Unbounded={final_u:,d} vs. Bounded={final_b:,d} ({reduction_pct:.1f}% smaller)")
+    fu, fb = unbounded[-1], bounded[-1]
+    pct = (1.0 - fb["cum_tokens"] / fu["cum_tokens"]) * 100.0
+    print(f"After turn 6: unbounded {fu['cum_lines']:,d} lines / ~{fu['cum_tokens']:,d} tokens; "
+          f"bounded {fb['cum_lines']:,d} lines / ~{fb['cum_tokens']:,d} tokens ({pct:.1f}% smaller).")
     print(
-        "Takeaway: Each turn in an agentic loop compounds context; scoping searches to source "
-        "directories and bounding test output prevents build artifacts and logs from polluting later turns."
+        "Takeaway: Each turn adds its tool output to the window and keeps it there. Scoping greps to src/, "
+        "reading only the file you will edit, and using `pytest -q` kept build and vendor files out of every later turn."
     )
 
 
 if __name__ == "__main__":
     main()
-

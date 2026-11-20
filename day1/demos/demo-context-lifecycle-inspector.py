@@ -2,123 +2,100 @@
 Demo - Context Lifecycle Inspector
 Day 1 - Topic 2
 
-Goal: Parse `.claude/rules/*.md` YAML frontmatter globs and demonstrate which instructions load at session startup versus on demand when Claude Code accesses specific repository files.
+Goal: Show which instruction files load at session startup and which load on demand when a file matching a rule's `paths:` globs is accessed.
 
-This script implements a real frontmatter parser and glob matcher modeled on Claude Code's context lifecycle, comparing a 320-line monolithic `CLAUDE.md` against a concise root `CLAUDE.md` paired with path-scoped `.claude/rules/*.md` files. Sizes are labeled estimates; verify live behavior with `/context`.
+This script reads the real `CLAUDE.md` and `.claude/rules/*.md` files in `fixtures/rules_repo/`, parses their `paths:` frontmatter, and checks accessed files (which must exist on disk) against the globs. It also totals what the same guidance costs if every rule is inlined into one monolithic `CLAUDE.md`. The matcher is a small stand-in written for this demo, not Claude Code's own; verify live loading with `/context`. Edit a rule file in the fixture and rerun to see the output change.
 
-No API key needed. Pure Python.
+No API key needed. Python 3 standard library only.
 
-Run: python3 day1/demos/demo-context-lifecycle-inspector.py
+Run (from the companion repo root): python3 day1/demos/demo-context-lifecycle-inspector.py
 """
 
-from fnmatch import fnmatch
+import re
+from pathlib import Path
 
-MONOLITHIC_CLAUDE_MD_LINES = 320
-CONCISE_ROOT_CLAUDE_MD = """# Order & Fulfillment Monorepo
-- Import shared agent notes: @AGENTS.md
-- Run all unit tests: pytest -q
-- Keep monetary values in integer cents across services.
-"""
-
-RULE_FILES = {
-    ".claude/rules/global-security.md": """# Global Security Hygiene
-- Never commit API keys, tokens, or customer PII to repository files.
-""",
-    ".claude/rules/orders-service.md": """---
-paths:
-  - "services/orders/**/*.py"
-  - "tests/orders/**/*.py"
----
-# Orders Service Rules
-- Represent all prices and discounts in integer cents; never use float.
-- Require idempotency_key on all order mutation functions.
-- Verify with: pytest tests/orders -q
-""",
-    ".claude/rules/webhook-gateway.md": """---
-paths:
-  - "services/webhook_gateway/**/*.py"
----
-# Webhook Gateway Rules
-- Verify HMAC-SHA256 signatures before parsing webhook payloads.
-- Use exponential backoff with jitter for outbound retries.
-""",
-}
+REPO = Path(__file__).parent / "fixtures" / "rules_repo"
 
 
-def parse_rule_frontmatter(markdown_text: str) -> tuple[list[str], str]:
-    """Extract `paths:` globs from YAML frontmatter if present."""
-    lines = markdown_text.strip().splitlines()
+def parse_rule(text: str) -> tuple[list[str], str]:
+    """Return (`paths:` globs, body) for a rule file."""
+    lines = text.strip().splitlines()
     if not lines or lines[0].strip() != "---":
-        return [], markdown_text.strip()
-
-    paths: list[str] = []
-    end_idx = 0
-    in_paths = False
-    for idx in range(1, len(lines)):
-        line = lines[idx].strip()
-        if line == "---":
-            end_idx = idx
-            break
-        if line.startswith("paths:"):
-            in_paths = True
-            continue
-        if in_paths and line.startswith("-"):
-            glob_val = line.lstrip("-").strip().strip('"').strip("'")
-            paths.append(glob_val)
-
-    body = "\n".join(lines[end_idx + 1 :]).strip()
-    return paths, body
+        return [], text.strip()
+    globs: list[str] = []
+    end = next(i for i in range(1, len(lines)) if lines[i].strip() == "---")
+    for line in lines[1:end]:
+        if line.strip().startswith("-"):
+            globs.append(line.strip().lstrip("-").strip().strip('"').strip("'"))
+    return globs, "\n".join(lines[end + 1:]).strip()
 
 
-def matches_any_glob(target_path: str, globs: list[str]) -> bool:
-    """Match a repository file path against Claude Code rule globs."""
-    for pattern in globs:
-        normalized = pattern.replace("**/", "")
-        if fnmatch(target_path, pattern) or fnmatch(target_path, normalized):
-            return True
-    return False
-
-
-def resolve_loaded_guidance(accessed_files: list[str]) -> list[tuple[str, str, int]]:
-    """Return (source, trigger_reason, line_count) for a given session state."""
-    loaded = [("CLAUDE.md (root)", "startup", len(CONCISE_ROOT_CLAUDE_MD.strip().splitlines()))]
-
-    for rule_path, raw_content in RULE_FILES.items():
-        globs, body = parse_rule_frontmatter(raw_content)
-        line_count = len(body.splitlines())
-        if not globs:
-            loaded.append((rule_path, "startup (no paths: frontmatter)", line_count))
+def glob_to_regex(glob: str) -> re.Pattern:
+    """`**/` spans directories, `*` stays inside one path segment."""
+    out, i = "", 0
+    while i < len(glob):
+        if glob.startswith("**/", i):
+            out += "(?:.*/)?"
+            i += 3
+        elif glob[i] == "*":
+            out += "[^/]*"
+            i += 1
         else:
-            matched_files = [f for f in accessed_files if matches_any_glob(f, globs)]
-            if matched_files:
-                loaded.append((rule_path, f"on-demand (matched {matched_files[0]})", line_count))
+            out += re.escape(glob[i])
+            i += 1
+    return re.compile(out + r"\Z")
+
+
+def matches(path: str, globs: list[str]) -> bool:
+    return any(glob_to_regex(g).match(path) for g in globs)
+
+
+def load_rules() -> dict[str, tuple[list[str], str]]:
+    return {
+        str(p.relative_to(REPO)): parse_rule(p.read_text())
+        for p in sorted((REPO / ".claude" / "rules").glob("*.md"))
+    }
+
+
+def resolve(accessed: list[str], rules: dict, root_lines: int) -> list[tuple[str, str, int]]:
+    loaded = [("CLAUDE.md (root)", "startup", root_lines)]
+    for name, (globs, body) in rules.items():
+        n = len(body.splitlines())
+        if not globs:
+            loaded.append((name, "startup (no paths: frontmatter)", n))
+            continue
+        hit = next((f for f in accessed if matches(f, globs)), None)
+        if hit:
+            loaded.append((name, f"on-demand (matched {hit})", n))
     return loaded
 
 
 def main() -> None:
+    rules = load_rules()
+    root_lines = len((REPO / "CLAUDE.md").read_text().strip().splitlines())
+    monolith = root_lines + sum(len(body.splitlines()) for _, body in rules.values())
+    print(f"Baseline: inlining every rule into one CLAUDE.md loads {monolith} lines at startup on every session.\n")
+
     scenarios = [
-        ("1. Session Startup (before file reads)", []),
+        ("1. Session startup (before file reads)", []),
         ("2. Reading services/orders/pricing.py", ["services/orders/pricing.py"]),
-        ("3. Control: Reading scripts/legacy_migration/run.py", ["scripts/legacy_migration/run.py"]),
+        ("3. Control: reading scripts/legacy_migration/run.py", ["scripts/legacy_migration/run.py"]),
     ]
-
-    print(f"Baseline comparison: Monolithic root CLAUDE.md loads {MONOLITHIC_CLAUDE_MD_LINES} lines at startup on every session.\n")
-
     for title, files in scenarios:
+        missing = [f for f in files if not (REPO / f).exists()]
+        assert not missing, f"fixture file not found: {missing}"
         print(f"=== {title} ===")
-        loaded = resolve_loaded_guidance(files)
-        total_lines = 0
-        for source, reason, count in loaded:
-            total_lines += count
-            print(f"  + {source:<36} | {reason:<42} | {count:>2} lines")
-        print(f"  Total guidance lines in active window: {total_lines} lines\n")
+        total = 0
+        for source, reason, count in resolve(files, rules, root_lines):
+            total += count
+            print(f"  + {source:<38} | {reason:<52} | {count:>2} lines")
+        print(f"  Guidance lines in the active window: {total} of {monolith}\n")
 
     print(
-        "Takeaway: Root CLAUDE.md and unconditional rules load at startup, while `.claude/rules/` "
-        "files with `paths:` globs load on demand only when matching files are accessed."
+        "Takeaway: The root CLAUDE.md and rules without `paths:` load at startup; rules with `paths:` "
+        "load only when a matching file is accessed."
     )
 
 
 if __name__ == "__main__":
     main()
-

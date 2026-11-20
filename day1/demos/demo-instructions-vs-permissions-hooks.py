@@ -2,97 +2,120 @@
 Demo - Instructions vs. Permissions and Hooks
 Day 1 - Topic 2
 
-Goal: Contrast advisory model-facing instructions (`CLAUDE.md`) with deterministic pre-action permission/hook gates (`PreToolUse`) and post-action verification checks (`PostToolUse`).
+Goal: Show that `CLAUDE.md` is advice, while a `PreToolUse` hook can block a tool call before it runs and a `PostToolUse` hook can only report after the write.
 
-This script evaluates simulated tool invocations against a repository policy configuration, demonstrating why `CLAUDE.md` guides coding choices while permissions and `PreToolUse` hooks block disallowed tool calls before execution, and why `PostToolUse` runs after an action has already taken place.
+This script reads a real `.claude/settings.json` from `fixtures/hooks_repo/`, finds the hooks registered for each tool call by matcher, and runs the real hook scripts as subprocesses using the Claude Code hook protocol (JSON on stdin; exit code 2 blocks and sends stderr back to Claude). It works on a temporary copy of the fixture and prints the hook exit codes, stderr, and whether the file on disk changed. The `permissions.deny` rules in the same file are enforced by Claude Code itself and are only listed here, not evaluated.
 
-No API key needed. Pure Python.
+No API key needed. Python 3 standard library only.
 
-Run: python3 day1/demos/demo-instructions-vs-permissions-hooks.py
+Run (from the companion repo root): python3 day1/demos/demo-instructions-vs-permissions-hooks.py
 """
 
-from fnmatch import fnmatch
+import hashlib
+import json
+import re
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
 
-ADVISORY_CLAUDE_MD_RULES = [
-    "Use integer cents for monetary fields in services/orders/.",
-    "Do not edit locked migration files under migrations/locked/.",
-]
-
-PERMISSION_DENY_PATTERNS = [
-    "Bash(rm -rf *)",
-    "Edit(migrations/locked/**)",
-]
+FIXTURE = Path(__file__).parent / "fixtures" / "hooks_repo"
 
 
-def evaluate_pre_tool_use(tool_name: str, target_arg: str) -> tuple[bool, str]:
-    """Deterministic PreToolUse and permission gate executed BEFORE the tool runs."""
-    call_signature = f"{tool_name}({target_arg})"
-    for pattern in PERMISSION_DENY_PATTERNS:
-        normalized = pattern.replace("**", "*")
-        if fnmatch(call_signature, pattern) or fnmatch(call_signature, normalized):
-            return False, f"BLOCKED before execution by permission/PreToolUse rule: {pattern}"
-    return True, "ALLOWED by PreToolUse gate"
+def sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:8]
 
 
-def evaluate_post_tool_use(tool_name: str, target_arg: str, file_content: str) -> str:
-    """PostToolUse check executed AFTER a write/edit has already completed."""
-    if tool_name in ("Edit", "Write") and target_arg.endswith(".py"):
-        if "float(" in file_content:
-            return "PostToolUse lint warning: detected `float(` in Python edit (action already occurred; requires follow-up fix)."
-        return "PostToolUse lint check: clean."
-    return "PostToolUse: no check configured for this tool."
+def hooks_for(settings: dict, event: str, tool_name: str) -> list[str]:
+    """Return hook commands whose matcher regex matches the tool name."""
+    commands = []
+    for entry in settings.get("hooks", {}).get(event, []):
+        if re.fullmatch(entry.get("matcher", ".*"), tool_name):
+            commands += [h["command"] for h in entry["hooks"] if h["type"] == "command"]
+    return commands
 
 
-def run_tool_pipeline(description: str, tool_name: str, target_arg: str, payload: str = "") -> None:
-    """Run a candidate tool call through PreToolUse, Execution, and PostToolUse."""
-    print(f"--- Scenario: {description} ---")
-    print(f"  Proposed Tool Call : {tool_name}({target_arg})")
-    allowed, pre_msg = evaluate_pre_tool_use(tool_name, target_arg)
-    print(f"  1. Pre-Action Gate : {pre_msg}")
-    if not allowed:
-        print("  2. Tool Execution  : SKIPPED (prevented before side effect)")
-        print("  3. Post-Action Hook: N/A\n")
+def run_hook(command: str, root: Path, event: str, tool_name: str, tool_input: dict) -> tuple[int, str]:
+    payload = {"hook_event_name": event, "tool_name": tool_name, "tool_input": tool_input}
+    proc = subprocess.run(
+        command, shell=True, cwd=root, input=json.dumps(payload), capture_output=True, text=True
+    )
+    return proc.returncode, proc.stderr.strip()
+
+
+def run_scenario(root: Path, settings: dict, title: str, tool_name: str, tool_input: dict, new_content: str = "") -> None:
+    target = root / tool_input["file_path"] if "file_path" in tool_input else None
+    before = sha(target) if target else "-"
+    # Claude Code sends absolute paths; mirror that.
+    sent = dict(tool_input, file_path=str(target)) if target else dict(tool_input)
+
+    print(f"--- {title} ---")
+    print(f"  Tool call      : {tool_name} {tool_input.get('file_path') or tool_input.get('command')}")
+
+    blocked = False
+    for cmd in hooks_for(settings, "PreToolUse", tool_name):
+        code, err = run_hook(cmd, root, "PreToolUse", tool_name, sent)
+        print(f"  PreToolUse     : `{cmd}` -> exit {code}" + (f", stderr: {err}" if err else ""))
+        blocked = blocked or code == 2
+    if blocked:
+        print("  Tool executed  : NO (blocked before any side effect)")
+        if target:
+            after = sha(target)
+            print(f"  File on disk   : {before} -> {after} ({'unchanged' if before == after else 'CHANGED'})")
+        print()
         return
 
-    print("  2. Tool Execution  : EXECUTED on workspace")
-    post_msg = evaluate_post_tool_use(tool_name, target_arg, payload)
-    print(f"  3. Post-Action Hook: {post_msg}\n")
+    if target:
+        target.write_text(new_content)  # stand-in for the Edit tool performing the write
+    print("  Tool executed  : YES")
+    for cmd in hooks_for(settings, "PostToolUse", tool_name):
+        code, err = run_hook(cmd, root, "PostToolUse", tool_name, sent)
+        print(f"  PostToolUse    : `{cmd}` -> exit {code}" + (f", stderr: {err}" if err else ""))
+    if target:
+        after = sha(target)
+        print(f"  File on disk   : {before} -> {after} ({'unchanged' if before == after else 'CHANGED, write already happened'})")
+    print()
 
 
 def main() -> None:
-    print("Advisory Guidance loaded in CLAUDE.md (guides model reasoning, not an access control):")
-    for rule in ADVISORY_CLAUDE_MD_RULES:
-        print(f"  * {rule}")
-    print("")
+    settings = json.loads((FIXTURE / ".claude" / "settings.json").read_text())
 
-    run_tool_pipeline(
-        "Attempt to edit a locked migration file",
-        tool_name="Edit",
-        target_arg="migrations/locked/0001_init.sql",
-        payload="ALTER TABLE orders DROP COLUMN audit_id;",
-    )
+    print("CLAUDE.md (advice the model may or may not follow):")
+    for line in (FIXTURE / "CLAUDE.md").read_text().splitlines():
+        if line.startswith("- "):
+            print(f"  {line}")
+    print("\npermissions.deny in settings.json (enforced by Claude Code, listed here, not evaluated):")
+    for rule in settings["permissions"]["deny"]:
+        print(f"  {rule}")
+    print("\nHooks below are the real scripts from fixtures/hooks_repo/.claude/hooks/.\n")
 
-    run_tool_pipeline(
-        "Edit pricing module with a float conversion",
-        tool_name="Edit",
-        target_arg="services/orders/pricing.py",
-        payload="discount = float(amount) * 0.10",
-    )
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp).resolve() / "hooks_repo"
+        shutil.copytree(FIXTURE, root)
 
-    run_tool_pipeline(
-        "Edit pricing module with integer cents",
-        tool_name="Edit",
-        target_arg="services/orders/pricing.py",
-        payload="discount_cents = (amount_cents * basis_points) // 10_000",
-    )
+        run_scenario(
+            root, settings, "1. Edit a locked migration", "Edit",
+            {"file_path": "migrations/locked/0001_init.sql"},
+            "ALTER TABLE orders DROP COLUMN audit_id;",
+        )
+        run_scenario(
+            root, settings, "2. Edit pricing with a float conversion", "Edit",
+            {"file_path": "services/orders/pricing.py"},
+            "def apply_discount(amount, bps):\n    return float(amount) * 0.10\n",
+        )
+        run_scenario(
+            root, settings, "3. Edit pricing with integer cents", "Edit",
+            {"file_path": "services/orders/pricing.py"},
+            "def apply_discount(amount_cents, bps):\n    return (amount_cents * bps) // 10_000\n",
+        )
+        run_scenario(root, settings, "4. Recursive delete", "Bash", {"command": "rm -rf migrations"})
 
     print(
-        "Takeaway: Use CLAUDE.md and `.claude/rules/` to guide coding conventions, permissions and "
-        "blocking PreToolUse hooks to stop disallowed tool actions before they run, and PostToolUse "
-        "hooks for post-edit linting—backed by OS/credential permissions and CI."
+        "Takeaway: CLAUDE.md steers, a PreToolUse hook stops the call before it runs (exit 2), and a "
+        "PostToolUse hook only reports after the write (scenario 2 left the float on disk). Back both "
+        "with OS permissions and CI."
     )
 
 
 if __name__ == "__main__":
     main()
-
