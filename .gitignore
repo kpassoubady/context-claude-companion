@@ -3,3 +3,8 @@ node_modules/
 .env
 dist/
 build/
+
+# Python bytecode and test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
