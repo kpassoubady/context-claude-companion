@@ -1,6 +1,6 @@
 """
 Demo - Instructions vs. Permissions and Hooks
-Day 1 - Session 2
+Day 1 - Topic 2
 
 Goal: Contrast advisory model-facing instructions (`CLAUDE.md`) with deterministic pre-action permission/hook gates (`PreToolUse`) and post-action verification checks (`PostToolUse`).
 

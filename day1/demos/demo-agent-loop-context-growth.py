@@ -1,6 +1,6 @@
 """
 Demo - Multi-Turn Agent Loop Context Growth
-Day 1 - Session 1
+Day 1 - Topic 1
 
 Goal: Simulate six turns of a Claude Code agent loop (`Gather -> Act -> Verify`) and measure how unbounded directory scans and build artifacts accumulate across turns compared to path-scoped queries.
 

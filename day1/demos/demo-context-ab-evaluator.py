@@ -1,6 +1,6 @@
 """
 Demo - Context A/B/C Scorecard Evaluator
-Day 1 - Session 4
+Day 1 - Topic 4
 
 Goal: Evaluate three context configurations against the same coding task using mandatory correctness, instruction adherence, and safety gates before comparing supporting token and turn efficiency metrics.
 

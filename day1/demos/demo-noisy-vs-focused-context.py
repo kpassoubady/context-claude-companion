@@ -1,6 +1,6 @@
 """
 Demo - Noisy vs. Focused Context Payloads
-Day 1 - Session 1
+Day 1 - Topic 1
 
 Goal: Compare a noisy context payload against a focused context payload by parsing real context segments, evaluating a payment settlement implementation against project invariants, and measuring signal-to-noise and constraint distance.
 

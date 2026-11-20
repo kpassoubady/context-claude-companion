@@ -1,6 +1,6 @@
 """
 Demo - Subagent Isolation vs. Inline Search
-Day 1 - Session 3
+Day 1 - Topic 3
 
 Goal: Compare inline multi-module exploration in a parent session against delegating the exploration to an isolated subagent, and evaluate when local file search (`Glob`/`Grep`) vs. external RAG is appropriate.
 

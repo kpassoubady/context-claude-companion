@@ -1,6 +1,6 @@
 """
 Demo - Context Lifecycle Inspector
-Day 1 - Session 2
+Day 1 - Topic 2
 
 Goal: Parse `.claude/rules/*.md` YAML frontmatter globs and demonstrate which instructions load at session startup versus on demand when Claude Code accesses specific repository files.
 

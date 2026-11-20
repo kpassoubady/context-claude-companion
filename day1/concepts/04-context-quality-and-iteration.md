@@ -24,11 +24,11 @@ Context edits should be tested with the same discipline as application code chan
 | **1. Primary gate** | Task correctness | Unit, integration, and regression test exit status | Must pass 100% before considering efficiency |
 | **2. Primary gate** | Instruction adherence | Checklist of non-inferable project invariants | Every required convention must hold in the diff |
 | **3. Primary gate** | Safety and boundaries | Hostile-source and unauthorized-action checks | Zero security boundary violations (NIST SSDF, OWASP) |
-| **4. Supporting measure** | Context and usage cost | `/context` snapshots, `/cost` session usage, turn count | Compare only among configurations that pass all primary gates |
+| **4. Supporting measure** | Context and usage cost | `/context` snapshots, `/usage` session usage (alias `/cost`), turn count | Compare only among configurations that pass all primary gates |
 
 ## Telemetry and the False Economy Trap
 
-Claude Code provides built-in diagnostic commands for observing resource usage. Running `/context` inspects what currently occupies the active context window across system instructions, memory files, MCP tools, and messages. Running `/cost` reports session token usage and estimated spend where supported by the account mode, whereas `/usage` inspects plan or rate-limit status. When a metric is unavailable in a given environment, record it as `N/A` rather than zero or a character-count estimate.
+Claude Code provides built-in diagnostic commands for observing resource usage. Running `/context` inspects what currently occupies the active context window across system instructions, memory files, MCP tools, and messages. Running `/usage` (alias `/cost`) reports session token usage and cost where supported by the account mode, and on subscription plans also shows plan usage limits. When a metric is unavailable in a given environment, record it as `N/A` rather than zero or a character-count estimate.
 
 Fewer tokens or fewer turns alone never prove that a context change improved performance. Deleting safety rules from `CLAUDE.md` or instructing the agent to edit without reading caller files can cut token usage in half while introducing regressions and breaking security invariants. Teams accept a context optimization only after automated tests, instruction adherence checks, and code review confirm that quality gates pass.
 

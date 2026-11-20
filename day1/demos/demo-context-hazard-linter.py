@@ -1,6 +1,6 @@
 """
 Demo - Context Hazard Linter
-Day 1 - Session 4
+Day 1 - Topic 4
 
 Goal: Audit a repository's context configuration (`CLAUDE.md`, `.claude/rules/*.md`, and captured tool logs) to detect stale file paths, conflicting directives, unscoped subsystem rules, redundancy, and verbose tool dumps.
 

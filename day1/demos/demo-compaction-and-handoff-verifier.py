@@ -1,6 +1,6 @@
 """
 Demo - Compaction and Handoff Verifier
-Day 1 - Session 3
+Day 1 - Topic 3
 
 Goal: Audit an unfocused auto-compaction summary against a focused `/compact` summary and a structured `HANDOFF.md` by verifying claims against actual repository state and test execution.
 
