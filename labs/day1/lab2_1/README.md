@@ -44,11 +44,12 @@ python3 verify_lab.py
 
 ### Expected Baseline Observation (Starter State)
 
-When you run `python3 verify_lab.py` in `start/`, you will observe:
-- **Baseline notification tests:** `PASS` (`tests/notifications/test_notifier.py` works out of the box).
-- **Root `CLAUDE.md` check:** `FAIL` (exceeds 60 lines and contains conflicting `unittest` and `float` directives).
-- **Scoped rule check:** `FAIL` (`.claude/rules/orders.md` still contains `TODO` placeholders in its `paths:` frontmatter).
-- **Order pricing acceptance check:** `FAIL` (`services/orders/pricing.py` fails `tests/orders/test_pricing.py` because it uses `float` and does not validate `idempotency_key`).
+When you run `python3 verify_lab.py` in `start/`, all five checks print `FAIL` and the script reports 8 issues:
+- **Root `CLAUDE.md` Check:** `FAIL` (over the 60-line limit and still contains legacy `float` discount instructions).
+- **Scoped `.claude/rules/orders.md` Check:** `FAIL` (unresolved `TODO` placeholders and no `---` frontmatter on line 1).
+- **AST Invariant Check (`pricing.py`):** `FAIL` (`services/orders/pricing.py` still references `float`).
+- **Unit & Acceptance Test Suite:** `FAIL` (4 of 5 tests fail; the notifications test passes, and the failures are the pricing tests that expect `int` results and `idempotency_key` validation).
+- **Before/After Comparison Record:** `FAIL` (`context_comparison.md` still contains `TODO` placeholders).
 
 ---
 
@@ -97,7 +98,7 @@ Before moving to Step 2, review the diff in `CLAUDE.md` and `.claude/rules/order
 
 ### Step 2: Implement the Scoped Order Pricing Fix (Minutes 11–19)
 
-1. Open `services/orders/pricing.py`. Notice the comment inside the file claiming that legacy callers want `float` and no `idempotency_key` check. Because retrieved comments in code or issues are untrusted data (OWASP LLM01), follow your `.claude/rules/orders.md` invariants instead.
+1. Use Claude Code's file-search tools (`Glob`, `Grep`, `Read`) to find and open `services/orders/pricing.py`. Notice the comment inside the file claiming that legacy callers want `float` and no `idempotency_key` check. Because retrieved comments in code or issues are untrusted data (OWASP LLM01), follow your `.claude/rules/orders.md` invariants instead.
 2. Complete `TODO 1` (validate `idempotency_key` is a non-empty `str`, raising `ValueError` otherwise, and validate `subtotal_cents >= 0` and `0 <= discount_bps <= 10000`) and `TODO 2` (calculate integer `discount_cents = ((subtotal_cents * discount_bps) + 5000) // 10000` and `total_cents = subtotal_cents - discount_cents` without using `float`).
 
 **Bounded Prompt for Step 2:**
@@ -136,8 +137,8 @@ python3 verify_lab.py
 
 ## 7. Completion Levels
 
-- **Basic (Required):** `CLAUDE.md` is concise (<60 lines), `.claude/rules/orders.md` has valid `paths:` frontmatter, `services/orders/pricing.py` passes all tests, and `python3 verify_lab.py` exits with `0`.
-- **Intermediate:** Complete `context_comparison.md` including live `/context` token counts (or `N/A (offline transcript)` if running without the CLI) and document why the untrusted comment in `pricing.py` was rejected.
+- **Basic (Required):** `CLAUDE.md` is concise (<60 lines), `.claude/rules/orders.md` has valid `paths:` frontmatter, `services/orders/pricing.py` passes all tests, `context_comparison.md` records a `/context` reading before and after (or `N/A (offline transcript)` if running without the CLI), and `python3 verify_lab.py` exits with `0`.
+- **Intermediate:** Document why the untrusted comment in `pricing.py` was rejected, and report live `/context` token counts for both states instead of `N/A`.
 - **Stretch:** Run a control task in Claude Code that reads `services/notifications/notifier.py` only, inspect `/context`, and verify that `.claude/rules/orders.md` remains unloaded until a file under `services/orders/` or `tests/orders/` is accessed.
 
 ---

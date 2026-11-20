@@ -11,8 +11,8 @@ You are taking over an active debugging investigation on a distributed task-queu
 ## 2. Learning Objectives
 
 - Formulate a focused `/compact` instruction and audit a lossy compaction summary against disk (`git status` / file inspection) and test output.
-- Author a durable `HANDOFF.md` with explicit provenance (revision, modified files, last test command/result), constraints, rejected approaches, and verification steps (NIST AI RMF 1.0).
-- Prevent untrusted log instructions or secrets from being promoted into trusted handoff guidance (OWASP LLM01 / LLM02).
+- Author a durable `HANDOFF.md` with explicit provenance (revision, modified files, last test command/result), constraints, rejected approaches, and verification steps.
+- Prevent untrusted log instructions or secrets from being promoted into trusted handoff guidance (OWASP LLM01).
 - Resume work in a fresh session (`/clear` + `HANDOFF.md`), re-verify repository state, and complete the bounded fix without repeating rejected approaches.
 
 ---
@@ -135,8 +135,8 @@ Identify the root cause, propose the smallest correction, preserve the acceptanc
 
 ## 7. Completion Levels
 
-- **Basic (Required):** `HANDOFF.md` is complete and accurate, `task_queue/lease.py` enforces optimistic `expected_seq` checking and increments `seq`, and `python3 verify_lab.py` exits with `0`.
-- **Intermediate:** Run `/compact` with your focused instructions in a live Claude Code session (or inspect the captured summary if offline) and document how post-compaction verification confirmed the working tree state.
+- **Basic (Required):** `HANDOFF.md` is complete and accurate, `task_queue/lease.py` enforces optimistic `expected_seq` checking and increments `seq`, `python3 verify_lab.py` exits with `0`, and you ran your focused `/compact` directive in a live Claude Code session (or inspected `session_history/auto_compact_summary.md` if offline) and noted what the summary lost.
+- **Intermediate:** Document how post-compaction verification (`git status` and `python3 verify_lab.py`) confirmed the working tree state.
 - **Stretch:** Add a section to `HANDOFF.md` specifying when a subagent should be used for searching across worker modules versus when direct `Grep` + `Read` is sufficient.
 
 ---
