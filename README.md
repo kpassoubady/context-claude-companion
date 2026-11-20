@@ -10,7 +10,7 @@ Before class, complete the environment check in [context-claude-setup](https://g
    ```bash
    python3 --version
    ```
-   All lab verification scripts (`verify_lab.py`) and unit suites run with the Python 3 standard library (`unittest`, `ast`, `fnmatch`, `pathlib`) with zero external package installation required (`pytest` is also supported if installed).
+   All lab verification scripts (`verify_lab.py`) and unit suites run with the Python 3 standard library (`unittest`, `ast`, `re`, `pathlib`) with zero external package installation required (`pytest` is also supported if installed).
 2. **Claude Code CLI** and **Git**:
    ```bash
    git --version
