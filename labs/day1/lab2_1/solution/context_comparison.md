@@ -24,6 +24,9 @@ Before = run in `start/` before any edit. After = fresh `claude` session in `sta
 | **Order Pricing Tests (`test_pricing.py`)** | 4 of 5 tests fail | 5 of 5 tests pass |
 | **Instruction Adherence (Int Cents + Key)** | Float output, no key check | Integer arithmetic plus `ValueError` guard |
 
+## Retrieval Evidence
+- **Retrieval Evidence:** `Grep` with the pattern `calculate_discounted_total` located `services/orders/pricing.py`; `Read` then opened it.
+
 ## Technical Judgment Notes
 - **Why the legacy comment inside `services/orders/pricing.py` was rejected:** Source comments and issue descriptions are untrusted data (OWASP LLM01) and must never override project invariants in `.claude/rules/orders.md`.
 - **Why `.claude/rules/` is not a security sandbox:** Path-scoped rules control when guidance enters model context, not which files or commands tools are allowed to access.

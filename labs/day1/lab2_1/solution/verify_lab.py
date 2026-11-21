@@ -19,16 +19,21 @@ STARTER_CLAUDE_MD_LINES = 75  # `wc -l start/CLAUDE.md` before any edit.
 MUST_MATCH = ("services/orders/pricing.py", "tests/orders/test_pricing.py")
 MUST_NOT_MATCH = ("services/notifications/notifier.py", "scripts/legacy_migration/migrate.py")
 
-# Conflicting guidance that must be gone from the root CLAUDE.md.
-CONFLICTING_GUIDANCE = (
-    "LEGACY_FLOAT_DISCOUNT_RULE",
+# Conflicting guidance markers. A line carrying one is flagged unless, once the
+# marker is removed, the rest of the line negates it ("Do not use nosetests.").
+CONFLICT_MARKERS = (
+    "legacy_float_discount_rule",
     "float(subtotal_cents)",
+    "float totals",
     "nosetests",
     "skip `idempotency_key`",
     "skip idempotency",
+    "ignore `idempotency_key`",
+    "ignore idempotency_key",
     "never require `idempotency_key`",
     "never require idempotency_key",
 )
+NEGATION = re.compile(r"\b(not|never|don't|avoid|no longer|deprecated|forbidden)\b", re.IGNORECASE)
 REQUIRED_LAYOUT = ("services/orders", "services/notifications", "scripts/legacy_migration")
 
 
@@ -97,11 +102,22 @@ def check_root_claude_md() -> list[str]:
     missing = [p for p in REQUIRED_LAYOUT if p not in text]
     if missing:
         errors.append(f"CLAUDE.md must state the repository layout; missing: {', '.join(missing)}.")
-    lowered = text.lower()
-    found = [g for g in CONFLICTING_GUIDANCE if g.lower() in lowered]
+    found = conflicting_markers(text)
     if found:
         errors.append(f"CLAUDE.md still contains conflicting guidance: {', '.join(found)}.")
     return errors
+
+
+def conflicting_markers(text: str) -> list[str]:
+    """Markers that appear on a line which does not negate them."""
+    found = []
+    for line in text.splitlines():
+        lowered = line.lower()
+        for marker in CONFLICT_MARKERS:
+            if marker in lowered and not NEGATION.search(lowered.replace(marker, " ")):
+                if marker not in found:
+                    found.append(marker)
+    return found
 
 
 def check_scoped_orders_rule() -> list[str]:
@@ -159,7 +175,16 @@ def _cells(line: str) -> list[str]:
 
 
 def _real(value: str) -> bool:
-    return value.strip("`* ").lower() not in PLACEHOLDERS and len(value.strip("`* ")) >= 3
+    """Not a placeholder, at least 3 characters, and not one repeated character like `xxx`."""
+    v = value.strip("`* ")
+    return v.lower() not in PLACEHOLDERS and len(v) >= 3 and len(set(v.lower())) >= 3
+
+
+# Each judgment note must name at least one of its topic keywords.
+JUDGMENT_NOTES = (
+    ("Why the legacy comment", ("untrusted", "llm01", "injection")),
+    ("Why `.claude/rules/` is not a security sandbox", ("permission", "sandbox", "load", "access", "enforce")),
+)
 
 
 def _field(text: str, label: str) -> str:
@@ -203,8 +228,8 @@ def check_comparison_record() -> list[str]:
                 errors.append(f"context_comparison.md `{key}` {label} cell is empty or a placeholder.")
         if key == "/context":
             for label, value in zip(("Before", "After"), cells):
-                if value.strip("`* ").lower().startswith("n/a") or len(value) < 15:
-                    errors.append(f"context_comparison.md `/context` {label} cell must hold the line(s) you observed.")
+                if value.strip("`* ").lower().startswith("n/a") or len(value) < 15 or "claude.md" not in value.lower():
+                    errors.append(f"context_comparison.md `/context` {label} cell must hold the line(s) you observed (they list `CLAUDE.md`).")
 
     lines_row = row("line count")
     if lines_row and all(_real(v) for v in lines_row):
@@ -221,9 +246,16 @@ def check_comparison_record() -> list[str]:
     if globs_row and _real(globs_row[1]) and not ("orders" in globs_row[1]):
         errors.append("After `paths:` cell should list the globs you configured.")
 
-    for label in ("Why the legacy comment", "Why `.claude/rules/` is not a security sandbox"):
-        if len(_field(text, label)) < 30:
+    retrieval = _field(text, "Retrieval Evidence")
+    if len(retrieval) < 15 or not re.search(r"glob|grep", retrieval, re.IGNORECASE):
+        errors.append("context_comparison.md `Retrieval Evidence` must name the tool (`Glob` or `Grep`) and the query used.")
+
+    for label, keywords in JUDGMENT_NOTES:
+        note = _field(text, label)
+        if len(note) < 30 or not _real(note):
             errors.append(f"context_comparison.md judgment note `{label}` needs a real explanation.")
+        elif not any(k in note.lower() for k in keywords):
+            errors.append(f"context_comparison.md judgment note `{label}` should mention one of: {', '.join(keywords)}.")
     return errors
 
 

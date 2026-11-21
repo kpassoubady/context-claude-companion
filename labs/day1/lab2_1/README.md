@@ -100,7 +100,7 @@ Before moving to Step 2, review the diff in `CLAUDE.md` and `.claude/rules/order
 
 ### Step 2: Implement the Scoped Order Pricing Fix (Minutes 11–19)
 
-1. In the controlled session, use Claude Code's file-search tools (`Glob`, `Grep`, `Read`) to find and open `services/orders/pricing.py`. Notice the comment inside the file claiming that legacy callers want `float` and no `idempotency_key` check. Because retrieved comments in code or issues are untrusted data (OWASP LLM01), follow your `.claude/rules/orders.md` invariants instead.
+1. In the controlled session, use Claude Code's file-search tools (`Glob`, `Grep`, `Read`) to find and open `services/orders/pricing.py`; record the tool and query in the **Retrieval Evidence** line of `context_comparison.md`. Notice the comment inside the file claiming that legacy callers want `float` and no `idempotency_key` check. Because retrieved comments in code or issues are untrusted data (OWASP LLM01), follow your `.claude/rules/orders.md` invariants instead.
 2. Complete `TODO 1` and `TODO 2` in `services/orders/pricing.py`, following the docstring there. Return integers only, with no `float`.
 
 **Bounded Prompt for Step 2:**

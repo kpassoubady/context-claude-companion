@@ -24,6 +24,9 @@ Before = run in `start/` before any edit. After = fresh `claude` session in `sta
 | **Order Pricing Tests (`test_pricing.py`)** | TODO | TODO |
 | **Instruction Adherence (Int Cents + Key)** | TODO | TODO |
 
+## Retrieval Evidence
+- **Retrieval Evidence:** TODO (which tool found `pricing.py`: `Glob` or `Grep`, and the exact query or pattern you used)
+
 ## Technical Judgment Notes
 - **Why the legacy comment inside `services/orders/pricing.py` was rejected:** TODO
 - **Why `.claude/rules/` is not a security sandbox:** TODO
