@@ -29,7 +29,7 @@ Work in pairs using a **Driver / Navigator** protocol. Begin with a 2-minute pri
 | **19–23** | Verify & Compare | Run `python3 verify_lab.py`; open a fresh controlled session, run `/context` again, and fill the **After** column. |
 | **23–25** | Share-Out | Two volunteer pairs report for 1 minute each (see section 8); everyone else finishes the record. |
 
-> **Pacing Fallback (Minute 19):** If the Python edit in `services/orders/pricing.py` takes longer than expected, copy `solution/services/orders/pricing.py` at minute 19 so you can complete and verify the `CLAUDE.md`, `.claude/rules/orders.md`, and `context_comparison.md` deliverables.
+> **Pacing Fallback (Minutes 11 and 19):** If the `.claude/rules/orders.md` step is not done by minute 11, copy `solution/.claude/rules/orders.md` and move on; you keep the glob derivation for the share-out. Likewise, if the Python edit in `services/orders/pricing.py` takes longer than expected, copy `solution/services/orders/pricing.py` at minute 19 so you can complete and verify the `CLAUDE.md`, `.claude/rules/orders.md`, and `context_comparison.md` deliverables.
 
 ---
 
