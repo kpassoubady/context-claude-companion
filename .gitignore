@@ -8,3 +8,6 @@ build/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# Lab 3.4 stretch output
+labs/day1/lab3_4_claude_context_commands/start/bulk/
