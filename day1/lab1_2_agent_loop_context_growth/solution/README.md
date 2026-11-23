@@ -43,13 +43,13 @@ Turn | Mode      | Command                                  | +Lines | Cum lines
 4    | unbounded | cat dist/ingest/worker.bundled.js        |    400 |     1,096 |         22,852 | 400
 4    | bounded   | cat src/ingest/worker.py                 |    100 |       111 |            506 |   0
 
-5    | unbounded | pytest -vv (verbose dump)                |     64 |     1,160 |         24,267 |   0
-5    | bounded   | pytest tests/test_ingest.py -q           |     14 |       125 |            863 |   0
+5    | unbounded | pytest -vv (verbose dump)                |     64 |     1,160 |         24,003 |   0
+5    | bounded   | pytest tests/test_ingest.py -q           |     14 |       125 |            692 |   0
 
-6    | unbounded | re-read worker.py and dist bundle        |    500 |     1,660 |         31,226 | 400
-6    | bounded   | git diff --stat src/                     |      2 |       127 |            882 |   0
+6    | unbounded | re-read worker.py and dist bundle        |    500 |     1,660 |         30,962 | 400
+6    | bounded   | git diff --stat src/                     |      2 |       127 |            711 |   0
 
-After turn 6: unbounded 1,660 lines / ~31,226 tokens; bounded 127 lines / ~882 tokens (97.2% smaller).
+After turn 6: unbounded 1,660 lines / ~30,962 tokens; bounded 127 lines / ~711 tokens (97.7% smaller).
 
 PASS  measure() returned one row per turn for both plans
 PASS  The bounded plan pulled in zero build or vendor lines
