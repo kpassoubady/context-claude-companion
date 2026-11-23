@@ -23,7 +23,8 @@ Before class, complete the environment check in [context-claude-setup](https://g
 | `day1/concepts/` | Student concept reference guides for Sessions 1–4 |
 | `labs/day1/lab2_1/` | **Breakout Lab 2.1:** Structuring Project Context with `CLAUDE.md` (`README.md`, `start/`, `solution/`) |
 | `labs/day1/lab3_1/` | **Breakout Lab 3.1:** Context Compaction and State Handoffs (`README.md`, `start/`, `solution/`) |
-| `day1/lab2_1` & `day1/lab3_1` | Convenience symlinks to `labs/day1/lab2_1` and `labs/day1/lab3_1` |
+| `labs/day1/lab3_4_claude_context_commands/` | **Lab 3.4:** Claude Code Context Commands (`/context`, `/compact`, `/clear`, `/autocompact`), checked with `check_lab.sh` instead of Python |
+| `day1/lab2_1`, `day1/lab3_1` & `day1/lab3_4` | Convenience symlinks into `labs/day1/` |
 
 ## Running Breakout Lab Checks
 

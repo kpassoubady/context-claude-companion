@@ -20,6 +20,7 @@ Student companion repository for the **Context Engineering for Claude Code** cou
 | `day1/lab2_1`, `day1/lab3_1` (and `*_structuring_project_context`, `*_context_compaction_and_handoffs`) | Symlinks to `labs/day1/` |
 | `labs/day1/lab2_1/` | Breakout Lab 2.1: structuring project context with `CLAUDE.md` (`README.md`, `start/`, `solution/`) |
 | `labs/day1/lab3_1/` | Breakout Lab 3.1: context compaction and state handoffs (`README.md`, `start/`, `solution/`) |
+| `labs/day1/lab3_4_claude_context_commands/` | Lab 3.4: live Claude Code context commands, no Python; checked with `./check_lab.sh` |
 | `resources/` | Cheatsheet PDFs (Claude CLI, context-claude) |
 | `scripts/` | Mermaid, Marp, and Excalidraw build/export helpers (see `scripts/README.md`) |
 | `llm-context/` | Working folders for LLM agents: `issues/`, `done/`, `todos/`, `roadmap/`, `brainstorm/`, `info/`, `prompts/`, `learnings/`, `artifacts/` (all empty apart from `.gitkeep`) |
