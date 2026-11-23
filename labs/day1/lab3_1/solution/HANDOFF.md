@@ -2,7 +2,7 @@
 
 ## 1. Provenance & Workspace State
 - **Timestamp:** 2026-11-06
-- **Repository Revision:** `e2dca69` (baseline commit from `./setup_repo.sh`; the hash is that of this solution tree)
+- **Repository Revision:** `6be2ba5` (baseline commit from `./setup_repo.sh`; the hash is that of this solution tree)
 - **Modified Files:** `task_queue/lease.py` (`git status --short` lists `M task_queue/lease.py`)
 - **Unmodified Files Verified on Disk:** `task_queue/dispatcher.py` (not listed by `git status`, so clean) and everything under `tests/`
 - **Last Verification Command & Result:** `python3 -m unittest discover -s tests -p "test_*.py"` -> `FAILED` on `tests/test_lease.py::test_concurrent_sequence_renewal_rejects_stale_seq`
