@@ -66,7 +66,3 @@ Lab complete.
 ## Takeaway
 
 An automatic summary can keep the story and drop the failing test, the rejected fixes, and the signature. Check any summary or `HANDOFF.md` against `git status` and `pytest` before you resume work.
-
-## Troubleshooting
-
-- If the ground-truth block shows `pytest failing: (none)` and two checks print `TODO`, pytest is emitting colour codes in your Jupyter kernel. Rerun with `NO_COLOR=1`, for example `NO_COLOR=1 jupyter nbconvert --to markdown --execute --stdout lab3_2_compaction_and_handoff_verifier.ipynb`.

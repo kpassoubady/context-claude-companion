@@ -103,8 +103,6 @@ cp -R labs/day1/lab3_1/solution /tmp/lab3_1_solution
 (cd labs/day1/lab3_4_claude_context_commands/solution && ./check_lab.sh)
 ```
 
-> **Local Jupyter and Lab 3.2:** if the ground-truth step shows `pytest failing: (none)` and two checks print `TODO`, pytest is emitting colour codes inside your Jupyter kernel. Run with `NO_COLOR=1` in front of the `jupyter` command.
-
 ## Want to do the exercise?
 
 1. Open the lab's `start/README.md` from the table above and follow it top to bottom.

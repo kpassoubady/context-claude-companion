@@ -76,8 +76,6 @@ Artifact                       | Failing test | Rejected fixes | Signature | Unm
 - The focused /compact summary keeps every fact
 - HANDOFF.md keeps every fact
 
-> **Local Jupyter shows `pytest failing: (none)`?** Your kernel is making pytest print colour codes, which break the `^FAILED` regex. Start Jupyter with colour off and rerun: `NO_COLOR=1 jupyter notebook`.
-
 ## Done when
 
 Every `check(...)` line prints `PASS`, and the last cell prints `Lab complete.` and a one-line takeaway.

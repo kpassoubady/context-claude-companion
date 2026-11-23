@@ -64,7 +64,7 @@ def run(root: Path, cmd: str) -> str:
     return re.sub(r" in \d+\.\d+s", " in Ns", proc.stdout + proc.stderr)
 
 
-PYTEST = f"{sys.executable} -m pytest -p no:cacheprovider"
+PYTEST = f"{sys.executable} -m pytest --color=no -p no:cacheprovider"
 
 UNBOUNDED = [
     ("cat CLAUDE.md", "cat CLAUDE.md"),

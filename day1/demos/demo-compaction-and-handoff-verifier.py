@@ -43,7 +43,7 @@ def build_session_state(root: Path) -> None:
 def collect_ground_truth(root: Path) -> dict:
     status = sh(root, ["git", "status", "--porcelain"]).rstrip().splitlines()
     modified = [line[3:] for line in status if not line.startswith("??")]
-    pytest_out = sh(root, [sys.executable, "-m", "pytest", "-q", "-rf", "--tb=no", "-p", "no:cacheprovider"])
+    pytest_out = sh(root, [sys.executable, "-m", "pytest", "-q", "-rf", "--tb=no", "--color=no", "-p", "no:cacheprovider"])
     failing = re.findall(r"^FAILED (\S+)", pytest_out, flags=re.M)
 
     tree = ast.parse((root / "refunds/ledger.py").read_text())
