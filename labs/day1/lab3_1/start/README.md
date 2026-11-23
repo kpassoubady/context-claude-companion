@@ -1,4 +1,8 @@
-# Breakout Lab 3.1: Context Compaction and State Handoffs
+# Breakout Lab 3.1: Context Compaction and State Handoffs (Start)
+
+> **Short on time, or want to see the finished result first?** Run the reference in [`../solution/`](../solution/README.md): a few commands, no editing.
+>
+> **Doing the exercise?** The `TODO` markers are in `HANDOFF.md` (eight sections) and in `LeaseManager.renew_lease` in `task_queue/lease.py`. Steps 1 to 3 below walk through them in order.
 
 ## 1. Scenario and Goal
 
@@ -30,7 +34,7 @@ Work in pairs using a **Driver / Navigator** protocol. Swap roles at Minute 15 w
 | **15–22** | Fresh Resume & Fix | Open a fresh session (`/clear`), read `CLAUDE.md` and `HANDOFF.md`, re-check disk state, apply the sequence check fix in `task_queue/lease.py`, and complete `HANDOFF.md` section 8. |
 | **22–25** | Verify & Debrief | Run `python3 verify_lab.py` to confirm all tests and handoff checks pass; prepare your 60-second share-out. |
 
-> **Pacing Fallback (Minute 18):** If editing `task_queue/lease.py` runs past minute 18, copy `solution/task_queue/lease.py` so you can focus on verifying `HANDOFF.md` and completing the fresh-session verification section.
+> **Pacing Fallback (Minute 18):** If editing `task_queue/lease.py` runs past minute 18, copy `../solution/task_queue/lease.py` so you can focus on verifying `HANDOFF.md` and completing the fresh-session verification section.
 
 ---
 
