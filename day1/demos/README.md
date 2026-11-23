@@ -2,6 +2,8 @@
 
 All demos run offline from the companion repo root (no API key required). Demos 2, 5, and 6 also call `git`, `pytest`, and `grep`; demo 4 runs the real hook scripts in `fixtures/hooks_repo/`. Fixture repos live in `fixtures/`. Pair these scripts with live `/context` and `/usage` (alias `/cost`) inspection in Claude Code during delivery.
 
+Colab notebook versions of every demo live in [`../demo-notebooks/`](../demo-notebooks/README.md).
+
 | File | Topic | Goal | Run Command |
 | :--- | :--- | :--- | :--- |
 | `demo-noisy-vs-focused-context.py` | Topic 1 | Compare noisy vs. focused context payloads, signal ratio, trust boundaries, and invariant checks | `python3 day1/demos/demo-noisy-vs-focused-context.py` |
