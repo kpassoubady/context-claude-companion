@@ -13,14 +13,15 @@ Student companion repository for the **Context Engineering for Claude Code** cou
 
 | Path | Purpose |
 | :--- | :--- |
+| `day1/README.md` | Day 1 index: every demo and lab, what it is for, and how to run it |
 | `day1/concepts/` | Concept reference guides, Sessions 1–4 (`01` to `04`) |
 | `day1/demos/` | Eight offline demo scripts (`demo-*.py`), `fixtures/` demo repos, `README.md` |
 | `day1/demo-notebooks/` | Colab notebook versions of each demo, with `README.md` |
-| `day1/lab1_1_*`, `lab1_2_*`, `lab2_2_*`, `lab2_3_*`, `lab3_2_*`, `lab3_3_*`, `lab4_1_*`, `lab4_2_*` | Breakout labs: `README.md`, `start/`, `solution/` notebooks |
-| `day1/lab2_1`, `day1/lab3_1` (and `*_structuring_project_context`, `*_context_compaction_and_handoffs`) | Symlinks to `labs/day1/` |
-| `labs/day1/lab2_1/` | Breakout Lab 2.1: structuring project context with `CLAUDE.md` (`README.md`, `start/`, `solution/`) |
-| `labs/day1/lab3_1/` | Breakout Lab 3.1: context compaction and state handoffs (`README.md`, `start/`, `solution/`) |
-| `labs/day1/lab3_4_claude_context_commands/` | Lab 3.4: live Claude Code context commands, no Python; checked with `./check_lab.sh` |
+| `day1/lab1_1_*`, `lab1_2_*`, `lab2_2_*`, `lab2_3_*`, `lab3_2_*`, `lab3_3_*`, `lab4_1_*`, `lab4_2_*` | Notebook labs: `start/` and `solution/`, each holding its own `README.md` and the `.ipynb` |
+| `day1/lab2_1`, `day1/lab3_1`, `day1/lab3_4` (and `*_structuring_project_context`, `*_context_compaction_and_handoffs`) | Symlinks to `labs/day1/` |
+| `labs/day1/lab2_1/` | Breakout Lab 2.1: structuring project context with `CLAUDE.md` (`start/` and `solution/`, each with its own `README.md`) |
+| `labs/day1/lab3_1/` | Breakout Lab 3.1: context compaction and state handoffs (`start/` and `solution/`, each with its own `README.md`) |
+| `labs/day1/lab3_4_claude_context_commands/` | Lab 3.4: live Claude Code context commands, no Python; `start/` and `solution/` each have a `README.md` and `./check_lab.sh` |
 | `resources/` | Cheatsheet PDFs (Claude CLI, context-claude) |
 | `scripts/` | Mermaid, Marp, and Excalidraw build/export helpers (see `scripts/README.md`) |
 | `llm-context/` | Working folders for LLM agents: `issues/`, `done/`, `todos/`, `roadmap/`, `brainstorm/`, `info/`, `prompts/`, `learnings/`, `artifacts/` (all empty apart from `.gitkeep`) |
@@ -35,8 +36,12 @@ Student companion repository for the **Context Engineering for Claude Code** cou
 # Verify the Lab 2.1 solution
 python3 labs/day1/lab2_1/solution/verify_lab.py
 
-# Verify the Lab 3.1 solution
-python3 labs/day1/lab3_1/solution/verify_lab.py
+# Verify the Lab 3.1 solution (in a throwaway copy: setup_repo.sh creates a .git folder)
+cp -R labs/day1/lab3_1/solution /tmp/lab3_1_solution
+(cd /tmp/lab3_1_solution && ./setup_repo.sh && python3 verify_lab.py)
+
+# Verify the Lab 3.4 solution
+(cd labs/day1/lab3_4_claude_context_commands/solution && ./check_lab.sh)
 
 # Run a demo (offline, no API key; run from repo root)
 python3 day1/demos/demo-noisy-vs-focused-context.py
@@ -44,7 +49,8 @@ python3 day1/demos/demo-noisy-vs-focused-context.py
 
 ## Conventions
 
-- Each breakout lab ships as a `start/` (student) and `solution/` (reference) pair with a `README.md`.
+- Each lab ships as a `start/` (student) and `solution/` (reference) pair. There is no lab-level `README.md`: each of `start/` and `solution/` has its own.
+- The Lab 3.1 baseline commit hash depends on every tracked file under `solution/` except `HANDOFF.md`. After editing any other file there (including `README.md`), rerun `./setup_repo.sh` in a throwaway copy and update the hash in `solution/HANDOFF.md` section 1.
 - Demos run offline from the repo root. Only `git`, `pytest`, and `grep` are needed, and only by some demos (`day1/demos/README.md`).
 - Markdown lint rules live in `.markdownlint.json` and `.markdownlintignore`.
 - `scripts/README.md` describes an instructor-repo layout (`slides/…`, `book/…`) that does not exist in this repo. Verify paths before running a script.
